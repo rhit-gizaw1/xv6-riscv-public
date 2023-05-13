@@ -6,13 +6,25 @@
 #include "proc.h"
 #include "defs.h"
 
+/* Simple random number generator ported from grind.c */
+unsigned long rand_next = 1;
+int rand(void);
+
 struct cpu cpus[NCPU];
 
-struct proc proc[NPROC];
+
+int randomRange = 1000; 
+struct proc proc[NPROC]; //skip over proceeses that are invalid 
+int minimum = 10; 
+int runnable = 0; 
+
+
+struct proc dupe[NPROC];
 
 struct proc *initproc;
 
 int nextpid = 1;
+
 struct spinlock pid_lock;
 
 extern void forkret(void);
@@ -25,6 +37,14 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+
+
+
+static inline void
+__wfi(void)
+{
+  asm volatile("wfi");
+}
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -146,6 +166,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+
+  p->priority = (rand() % 7) + 1;
+  p->tickets = p->priority * 100;  
+
+
   return p;
 }
 
@@ -169,6 +194,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->tickets = 0; 
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -250,6 +276,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  runnable ++; 
 
   release(&p->lock);
 }
@@ -446,27 +473,70 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+
+  //Obtain my random number, set a running count and a bool to check if something was chosen 
+  int threshold = (rand() % randomRange) + 1; 
+  int total = 0; 
+  int ran = 0; 
+
+  //backup incase nothing gets chosen
+  struct proc *highestPriority = &proc[0]; 
+
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    __wfi(); 
+    //wfi call
+
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+        int tickets = p->tickets; 
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+        //store the highest priority at all times
+        if(tickets > highestPriority->tickets){
+          highestPriority = p; 
+        }
+        total += tickets; 
+
+        //won the lottery 
+        if(total >= threshold){
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          runnable --; 
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          ran = 1; 
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
       }
       release(&p->lock);
+    }
+
+
+    //if no one was selected to win the lottery 
+    if(!ran){
+      acquire(&highestPriority->lock);
+
+      randomRange = highestPriority -> tickets + (highestPriority->tickets * 0.5);
+      highestPriority->state = RUNNING;
+
+      c->proc = highestPriority;
+      swtch(&c->context, &highestPriority->context);
+      ran = 1; 
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+      release(&highestPriority->lock);
     }
   }
 }
@@ -504,10 +574,31 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  if(p->tickets >= 100 + minimum){
+    p->tickets -= 100; 
+  }else{
+    p->tickets = 10; 
+  }
   p->state = RUNNABLE;
+  runnable ++; 
   sched();
   release(&p->lock);
 }
+
+
+// Preemptive Yield. Give an extra 100 tickets as compensation 
+void
+userYield(void)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->tickets += 100; 
+  p->state = RUNNABLE;
+  runnable ++; 
+  sched();
+  release(&p->lock);
+}
+
 
 // A fork child's very first scheduling by scheduler()
 // will swtch to forkret.
@@ -573,6 +664,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        runnable ++; 
       }
       release(&p->lock);
     }
@@ -680,4 +772,35 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+
+static int do_rand(unsigned long *ctx)
+{
+/*
+  * Compute x = (7^5 * x) mod (2^31 - 1)
+  * without overflowing 31 bits:
+  *      (2^31 - 1) = 127773 * (7^5) + 2836
+  * From "Random number generators: good ones are hard to find",
+  * Park and Miller, Communications of the ACM, vol. 31, no. 10,
+  * October 1988, p. 1195.
+  */
+long hi, lo, x;
+
+/* Transform to [1, 0x7ffffffe] range. */
+x = (*ctx % 0x7ffffffe) + 1;
+hi = x / 127773;
+lo = x % 127773;
+x = 16807 * lo - 2836 * hi;
+if(x < 0) x += 0x7fffffff;
+/* Transform to [0, 0x7ffffffd] range. */
+x--;
+*ctx = x;
+return (x);
+}
+
+int rand(void)
+{
+return do_rand(&rand_next);
 }
