@@ -36,7 +36,11 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
-
+static inline void
+__wfi(void)
+{
+  asm volatile("wfi");
+}
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -269,6 +273,7 @@ void userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  runnable++;
 
   release(&p->lock);
 }
@@ -403,6 +408,7 @@ void exit(int status)
   p->xstate = status;
   if (p->state == RUNNABLE)
   {
+    runnable--;
   }
   p->state = ZOMBIE;
 
@@ -474,13 +480,6 @@ int wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
-
-static inline void
-__wfi(void)
-{
-  asm volatile("wfi");
-}
-
 void scheduler(void)
 {
   struct proc *p;
@@ -491,12 +490,8 @@ void scheduler(void)
   int total = 0;
   int ran = 0;
 
-  int runCount = 0;
-
   // backup incase nothing gets chosen
   struct proc *highestPriority = &proc[0];
-
-  printf("in scheduer\n");
 
   c->proc = 0;
   for (;;)
@@ -504,13 +499,18 @@ void scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    while (runnable <= 0)
+    {
+
+      __wfi();
+    }
+    // wfi call
+
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
       if (p->state == RUNNABLE)
       {
-        printf("found a runnable \n");
-
         int tickets = p->tickets;
 
         // store the highest priority at all times
@@ -527,7 +527,7 @@ void scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
-
+          runnable--;
           c->proc = p;
           swtch(&c->context, &p->context);
           ran = 1;
@@ -535,27 +535,14 @@ void scheduler(void)
           // Process is done running for now.
           // It should have changed its p->state before coming back.
           c->proc = 0;
-
-          printf("got to end of if\n"); 
         }
       }
-      else
-      {
-        runCount++;
-      }
       release(&p->lock);
-    }
-
-    if (runCount == NPROC)
-    {
-      __wfi();
     }
 
     // if no one was selected to win the lottery
     if (!ran)
     {
-
-      printf("nothing ran\n"); 
       acquire(&highestPriority->lock);
 
       randomRange = highestPriority->tickets + (highestPriority->tickets * 0.5);
@@ -613,7 +600,7 @@ void yield(void)
     p->tickets = 10;
   }
   p->state = RUNNABLE;
-
+  runnable++;
   sched();
   release(&p->lock);
 }
@@ -625,7 +612,7 @@ void userYield(void)
   acquire(&p->lock);
   p->tickets += 100;
   p->state = RUNNABLE;
-
+  runnable++;
   sched();
   release(&p->lock);
 }
@@ -671,6 +658,7 @@ void sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
   if (p->state == RUNNABLE)
   {
+    runnable--;
   }
   p->state = SLEEPING;
 
@@ -698,6 +686,7 @@ void wakeup(void *chan)
       if (p->state == SLEEPING && p->chan == chan)
       {
         p->state = RUNNABLE;
+        runnable++;
       }
       release(&p->lock);
     }
@@ -721,6 +710,7 @@ int kill(int pid)
       {
         // Wake process from sleep().
         p->state = RUNNABLE;
+        runnable++;
       }
       release(&p->lock);
       return 0;
