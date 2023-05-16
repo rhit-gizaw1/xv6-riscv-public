@@ -40,11 +40,7 @@ struct spinlock wait_lock;
 // Map it high in memory, followed by an invalid
 // guard page.
 
-static inline void
-__wfi(void)
-{
-  asm volatile("wfi");
-}
+
 
 void proc_mapstacks(pagetable_t kpgtbl)
 {
@@ -472,6 +468,12 @@ int wait(uint64 addr)
   }
 }
 
+static inline void
+__wfi(void)
+{
+  asm volatile("wfi");
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -485,22 +487,24 @@ void scheduler(void)
   struct cpu *c = mycpu();
 
   // Obtain my random number, set a running count and a bool to check if something was chosen
-  int threshold = (rand() % randomRange) + 1;
-  int total = 0;
-  int ran = 0;
-  int runCount = 0;
-  printf("Threshold: %d %d %d\n", threshold, total, ran);
+  // printf("Threshold: %d %d %d\n", threshold, total, ran);
 
   // backup incase nothing gets chosen
-  struct proc *highestPriority = &proc[0];
-  printf("%p\n", highestPriority);
 
   c->proc = 0;
   for (;;)
   {
 
+    struct proc *highestPriority = &proc[0];
+    int threshold = (rand() % randomRange) + 1;
+    int total = 0;
+    int ran = 0;
+    int runCount = 0;
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
+
+    // printf("random number is %d\n ",  threshold); 
+    // printf("highest priority right now is %s who is %s\n", highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable"); 
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
@@ -508,7 +512,7 @@ void scheduler(void)
       if (p->state == RUNNABLE)
       {
         int tickets = p->tickets;
-        printf("Tickets: %d\n", tickets);
+        printf("Tickets %d has: %d\n", p->pid, tickets);
 
         // store the highest priority at all times
         if (tickets > highestPriority->tickets)
@@ -516,6 +520,8 @@ void scheduler(void)
           highestPriority = p;
         }
         total += tickets;
+
+        printf("total is now %d after adding %s\n", total, p->name);
 
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
@@ -527,24 +533,16 @@ void scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
-          runableProcs--;
           c->proc = p;
           ran = 1;
           total = 0;
+          printf("swtich to %s\n", p->name); 
           swtch(&c->context, &p->context);
 
           // Process is done running for now.
           // It should have changed its p->state before coming back.
           c->proc = 0;
         }
-
-        // p->state = RUNNING;
-        // c->proc = p;
-        // swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        // c->proc = 0;
       }
       else
       {
@@ -552,27 +550,34 @@ void scheduler(void)
       }
       release(&p->lock);
     }
+    // printf("comparing %d to %d\n", runCount, NPROC); 
 
     if (runCount == NPROC)
     {
+      // printf("WFI CALL\n"); 
       __wfi();
     }
+    else
+    {
 
-    // if (!ran && highestPriority->state == RUNNABLE)
-    // {
-    //   acquire(&highestPriority->lock);
+      acquire(&highestPriority->lock);
+          
+      if (!ran && highestPriority->state == RUNNABLE)
+      {
 
-    //   randomRange = highestPriority->tickets + (highestPriority->tickets * 0.5);
-    //   highestPriority->state = RUNNING;
+        randomRange = highestPriority->tickets ; 
+        printf("have lock %d %s who is %s\n", highestPriority->pid, highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
+        highestPriority->state = RUNNING;
 
-    //   c->proc = highestPriority;
-    //   swtch(&c->context, &highestPriority->context);
+        c->proc = highestPriority;
+        swtch(&c->context, &highestPriority->context);
 
-    //   // Process is done running for now.
-    //   // It should have changed its p->state before coming back.
-    //   c->proc = 0;
-    //   release(&highestPriority->lock);
-    // }
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+      release(&highestPriority->lock);
+    }
   }
 }
 
