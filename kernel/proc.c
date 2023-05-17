@@ -167,7 +167,7 @@ found:
   p->priority = (rand() % 7) + 1;
 
   p->tickets = p->priority * 100;
-  printf("p-priority: %d, %d, %d, p->tickets: %d\n", p->priority, rand() % 7, rand() % 7, p->tickets);
+  // printf("p-priority: %d, %d, %d, p->tickets: %d\n", p->priority, rand() % 7, rand() % 7, p->tickets);
   return p;
 }
 
@@ -512,7 +512,7 @@ void scheduler(void)
       if (p->state == RUNNABLE)
       {
         int tickets = p->tickets;
-        printf("Tickets %d has: %d\n", p->pid, tickets);
+        // printf("Tickets %d has: %d\n", p->pid, tickets);
 
         // store the highest priority at all times
         if (tickets > highestPriority->tickets)
@@ -521,7 +521,7 @@ void scheduler(void)
         }
         total += tickets;
 
-        printf("total is now %d after adding %s\n", total, p->name);
+        // printf("total is now %d after adding %s\n", total, p->name);
 
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
@@ -536,7 +536,7 @@ void scheduler(void)
           c->proc = p;
           ran = 1;
           total = 0;
-          printf("swtich to %s\n", p->name); 
+          // printf("swtich to %s\n", p->name); 
           swtch(&c->context, &p->context);
 
           // Process is done running for now.
@@ -566,7 +566,7 @@ void scheduler(void)
       {
 
         randomRange = highestPriority->tickets ; 
-        printf("have lock %d %s who is %s\n", highestPriority->pid, highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
+        // printf("have lock %d %s who is %s\n", highestPriority->pid, highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
         highestPriority->state = RUNNING;
 
         c->proc = highestPriority;
@@ -806,7 +806,6 @@ void procdump(void)
   struct proc *p;
   char *state;
 
-  printf("\n");
   for (p = proc; p < &proc[NPROC]; p++)
   {
     if (p->state == UNUSED)
