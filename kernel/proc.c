@@ -164,6 +164,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  
   p->priority = (rand() % 7) + 1;
 
   p->tickets = p->priority * 100;
@@ -468,6 +469,13 @@ int wait(uint64 addr)
   }
 }
 
+
+void setPriority(int priority){
+  struct proc *p = myproc();
+  printf("setting priority for %s to %d\n", p->name, priority); 
+  p->priority = priority; 
+}
+
 static inline void
 __wfi(void)
 {
@@ -486,11 +494,7 @@ void scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
 
-  // Obtain my random number, set a running count and a bool to check if something was chosen
   // printf("Threshold: %d %d %d\n", threshold, total, ran);
-
-  // backup incase nothing gets chosen
-
   c->proc = 0;
   for (;;)
   {
@@ -500,7 +504,6 @@ void scheduler(void)
     int total = 0;
     int ran = 0;
     int runCount = 0;
-    // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
     // printf("random number is %d\n ",  threshold); 
@@ -523,10 +526,6 @@ void scheduler(void)
 
         // printf("total is now %d after adding %s\n", total, p->name);
 
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-
         if (total >= threshold)
         {
           // Switch to chosen process.  It is the process's job
@@ -537,10 +536,7 @@ void scheduler(void)
           ran = 1;
           total = 0;
           // printf("swtich to %s\n", p->name); 
-          swtch(&c->context, &p->context);
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
+          swtch(&c->context, &p->context); 
           c->proc = 0;
         }
       }
@@ -568,12 +564,8 @@ void scheduler(void)
         randomRange = highestPriority->tickets ; 
         // printf("have lock %d %s who is %s\n", highestPriority->pid, highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
         highestPriority->state = RUNNING;
-
         c->proc = highestPriority;
         swtch(&c->context, &highestPriority->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
         c->proc = 0;
       }
       release(&highestPriority->lock);

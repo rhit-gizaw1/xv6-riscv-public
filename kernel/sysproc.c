@@ -95,3 +95,8 @@ sys_userYield(void){
   userYield(); 
   return 0; 
 }
+
+uint64 sys_setPriority(void){
+  setPriority(1); 
+  return 0; 
+}
