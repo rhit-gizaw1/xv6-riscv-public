@@ -97,6 +97,8 @@ sys_userYield(void){
 }
 
 uint64 sys_setPriority(void){
-  setPriority(1); 
+  uint64 addr;
+  argaddr(0, &addr);
+  setPriority((int) addr); 
   return 0; 
 }

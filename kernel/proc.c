@@ -164,7 +164,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  
+  printf("priority for %s is %d\n", p->name, p->priority); 
+  printf("\n"); 
   p->priority = (rand() % 7) + 1;
 
   p->tickets = p->priority * 100;
@@ -472,7 +473,7 @@ int wait(uint64 addr)
 
 void setPriority(int priority){
   struct proc *p = myproc();
-  printf("setting priority for %s to %d\n", p->name, priority); 
+  printf("setting priority for %s to %d. it is %s\n", p->name, priority, p->state == RUNNING ? "running" : "not running"); 
   p->priority = priority; 
 }
 
