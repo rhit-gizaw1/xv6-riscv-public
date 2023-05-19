@@ -4,36 +4,27 @@
 
 int main(int argc, char *argv[])
 {
-    int pid = fork();
-    if (pid == 0)
+    int pid;
+    int count = 0;
+    printf("Parent process with PID = %d\n", getpid());
+
+    for (int i = 0; i < 10; i++)
     {
-        int childFork = fork();
-        if (!childFork)
+        pid = fork();
+        if (pid == 0)
         {
-            // setPriority(2);
-            int count = 0;
-            for (int i = 0; i < 20000000; i++)
+            // Child Process
+            setPriority(i);
+            // printf("Child process %d with PID = %d\n", i + 1, getpid());
+            for (int x = 1; x <= (i + 1); x++)
             {
                 count++;
+                // printf("Child process %d with PID = %d\n", i + 1, getpid());
             }
-            exit(0);
         }
-        else
-        {
-            // setPriority(7);
-            int count = 0;
-            sleep(5); 
-            for (int i = 0; i < 30; i++)
-            {
-                count++;
-            }
-            // printf("PARENT\n");
-            exit(0);
-        }
-    } else {
-        wait(0); 
-        
+        wait(0);
     }
+    printf("Count is %d\n", count);
 
     return 0;
 }

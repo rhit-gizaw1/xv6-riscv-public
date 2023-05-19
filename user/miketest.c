@@ -10,11 +10,9 @@ int main(int argc, char *argv[])
         int childFork = fork();
         if (!childFork)
         {
-            // setPriority(2);
-            int count = 0;
-            for (int i = 0; i < 20000000; i++)
+            for (int i = 0; i < 200; i++)
             {
-                count++;
+                userYield();
             }
             exit(0);
         }
@@ -25,6 +23,10 @@ int main(int argc, char *argv[])
             sleep(5); 
             for (int i = 0; i < 30; i++)
             {
+                int k = 0;
+                while((5+k) >= 50){
+                    k++;
+                }
                 count++;
             }
             // printf("PARENT\n");
