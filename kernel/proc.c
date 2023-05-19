@@ -628,7 +628,7 @@ void userYield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->tickets += 100;
-  printf("process %d yieled so we added %d tickets\n", p->pid, 100);
+  // printf("process %d yieled so we added %d tickets\n", p->pid, 100);
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -731,7 +731,7 @@ int kill(int pid)
       {
         // Wake process from sleep().
         p->state = RUNNABLE;
-        printf("marked %d to be killed\n", p->pid);
+        // printf("marked %d to be killed\n", p->pid);
         runableProcs++;
       }
       release(&p->lock);

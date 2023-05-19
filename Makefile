@@ -136,6 +136,8 @@ UPROGS=\
 	$U/_xv6test\
 	$U/_xv6test2\
 	$U/_miketest\
+	$U/_xv6test3\
+	$U/_xv6test4\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
