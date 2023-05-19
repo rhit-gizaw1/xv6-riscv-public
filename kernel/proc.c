@@ -40,8 +40,6 @@ struct spinlock wait_lock;
 // Map it high in memory, followed by an invalid
 // guard page.
 
-
-
 void proc_mapstacks(pagetable_t kpgtbl)
 {
   struct proc *p;
@@ -164,10 +162,12 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  printf("ALLOC PROC priority for %d is %d and has tickets %d. from: \n", p->pid, p->priority, p->tickets, p->name);
+  // printf("\n");
   p->priority = (rand() % 7) + 1;
 
   p->tickets = p->priority * 100;
-  printf("p-priority: %d, %d, %d, p->tickets: %d\n", p->priority, rand() % 7, rand() % 7, p->tickets);
+  // printf("p-priority: %d, %d, %d, p->tickets: %d\n", p->priority, rand() % 7, rand() % 7, p->tickets);
   return p;
 }
 
@@ -177,6 +177,7 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  printf("Process %d has been freed\n", p->pid);
   if (p->trapframe)
     kfree((void *)p->trapframe);
   p->trapframe = 0;
@@ -468,6 +469,13 @@ int wait(uint64 addr)
   }
 }
 
+void setPriority(int priority)
+{
+  struct proc *p = myproc();
+  printf("setting priority for %d to %d\n", p->pid, priority);
+  p->priority = priority;
+}
+
 static inline void
 __wfi(void)
 {
@@ -486,61 +494,47 @@ void scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
 
-  // Obtain my random number, set a running count and a bool to check if something was chosen
   // printf("Threshold: %d %d %d\n", threshold, total, ran);
-
-  // backup incase nothing gets chosen
-
   c->proc = 0;
   for (;;)
   {
-
     struct proc *highestPriority = &proc[0];
     int threshold = (rand() % randomRange) + 1;
+
     int total = 0;
     int ran = 0;
     int runCount = 0;
-    // Avoid deadlock by ensuring that devices can interrupt.
+
     intr_on();
 
-    // printf("random number is %d\n ",  threshold); 
-    // printf("highest priority right now is %s who is %s\n", highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable"); 
+    // printf("random number is %d\n ",  threshold);
+    // printf("highest priority right now is %s who is %s\n", highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
       if (p->state == RUNNABLE)
       {
+        // printf("we have %d processes\n", NPROC);
+        // printf("threshold generated: %d\n", threshold);
         int tickets = p->tickets;
-        printf("Tickets %d has: %d\n", p->pid, tickets);
+        // printf("Tickets %d has: %d\n", p->pid, tickets);
 
-        // store the highest priority at all times
         if (tickets > highestPriority->tickets)
         {
           highestPriority = p;
         }
         total += tickets;
-
-        printf("total is now %d after adding %s\n", total, p->name);
-
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
+        printf("total is now %d after adding %d tickets from %d. threshold was %d. It is from %s and had priority %d\n", total, p->tickets, p->pid, threshold, p->name, p->priority);
 
         if (total >= threshold)
         {
-          // Switch to chosen process.  It is the process's job
-          // to release its lock and then reacquire it
-          // before jumping back to us.
           p->state = RUNNING;
           c->proc = p;
           ran = 1;
           total = 0;
-          printf("swtich to %s\n", p->name); 
+          printf("selected process %d with priority %d\n", p->pid, p->priority);
           swtch(&c->context, &p->context);
-
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
           c->proc = 0;
         }
       }
@@ -550,30 +544,31 @@ void scheduler(void)
       }
       release(&p->lock);
     }
-    // printf("comparing %d to %d\n", runCount, NPROC); 
+    // printf("comparing %d to %d\n", runCount, NPROC);
 
     if (runCount == NPROC)
     {
-      // printf("WFI CALL\n"); 
+      // printf("we are putting %s into the WFI CALL\n", p->name);
       __wfi();
     }
     else
+
     {
+      // printf("we found %d runnable procs\n", NPROC - runCount);
+      // printf("\n");
 
       acquire(&highestPriority->lock);
-          
+      // printf("outside loop. ran is %d and the highest priority is %d who is %s\n", ran, highestPriority->pid, highestPriority->state == RUNNABLE ? "runnabe" : "not runnable");
+
       if (!ran && highestPriority->state == RUNNABLE)
       {
 
-        randomRange = highestPriority->tickets ; 
-        printf("have lock %d %s who is %s\n", highestPriority->pid, highestPriority->name, highestPriority->state == RUNNABLE ? "Runnable" : "Not runnable");
-        highestPriority->state = RUNNING;
-
+        randomRange = highestPriority->tickets;
+        // printf("\n");
+        printf("have lock %d becayse the total is %d and the threshold was %d\n", highestPriority->pid, total, threshold);
+        // printf("\n");
         c->proc = highestPriority;
         swtch(&c->context, &highestPriority->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
         c->proc = 0;
       }
       release(&highestPriority->lock);
@@ -612,16 +607,17 @@ void yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
-  // if (p->tickets >= 100 + minimum)
-  // {
-  //   p->tickets -= 100;
-  // }
-  // else
-  // {
-  //   p->tickets = 10;
-  // }
+  if (p->tickets >= 100 + minimum)
+  {
+    p->tickets -= 100;
+    printf("We just gave up process %d and took away %d tickets\n", p->pid, 100);
+  }
+  else
+  {
+    p->tickets = minimum;
+    printf("We just gave up process %d and took away %d tickets\n", p->pid, 10);
+  }
   p->state = RUNNABLE;
-  runableProcs++;
   sched();
   release(&p->lock);
 }
@@ -630,9 +626,8 @@ void userYield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
-  // p->tickets += 100;
+  p->tickets += 100;
   p->state = RUNNABLE;
-  runableProcs++;
   sched();
   release(&p->lock);
 }
@@ -680,6 +675,7 @@ void sleep(void *chan, struct spinlock *lk)
   {
     runableProcs--;
   }
+  printf("going to sleep %d\n", p->pid); 
   p->state = SLEEPING;
 
   sched();
@@ -706,7 +702,7 @@ void wakeup(void *chan)
       if (p->state == SLEEPING && p->chan == chan)
       {
         p->state = RUNNABLE;
-        runableProcs++;
+        printf("%d is waking up\n", p->pid); 
       }
       release(&p->lock);
     }
@@ -730,6 +726,7 @@ int kill(int pid)
       {
         // Wake process from sleep().
         p->state = RUNNABLE;
+        printf("marked %d to be killed\n", p->pid); 
         runableProcs++;
       }
       release(&p->lock);
@@ -806,7 +803,6 @@ void procdump(void)
   struct proc *p;
   char *state;
 
-  printf("\n");
   for (p = proc; p < &proc[NPROC]; p++)
   {
     if (p->state == UNUSED)
@@ -816,7 +812,7 @@ void procdump(void)
     else
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
-    printf("\n");
+    // printf("\n");
   }
 }
 
