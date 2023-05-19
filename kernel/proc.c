@@ -349,6 +349,7 @@ int fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+  runableProcs++;
 
   return pid;
 }
@@ -627,6 +628,7 @@ void userYield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->tickets += 100;
+  printf("process %d yieled so we added %d tickets\n", p->pid, 100);
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -675,6 +677,7 @@ void sleep(void *chan, struct spinlock *lk)
   {
     runableProcs--;
   }
+
   //printf("going to sleep %d\n", p->pid); 
   p->state = SLEEPING;
 
@@ -702,7 +705,9 @@ void wakeup(void *chan)
       if (p->state == SLEEPING && p->chan == chan)
       {
         p->state = RUNNABLE;
+
         //printf("%d is waking up\n", p->pid); 
+
       }
       release(&p->lock);
     }
@@ -726,7 +731,7 @@ int kill(int pid)
       {
         // Wake process from sleep().
         p->state = RUNNABLE;
-        printf("marked %d to be killed\n", p->pid); 
+        printf("marked %d to be killed\n", p->pid);
         runableProcs++;
       }
       release(&p->lock);
