@@ -162,7 +162,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  printf("ALLOC PROC priority for %d is %d and has tickets %d. from: \n", p->pid, p->priority, p->tickets, p->name);
+  //printf("ALLOC PROC priority for %d is %d and has tickets %d. from: \n", p->pid, p->priority, p->tickets, p->name);
   // printf("\n");
   p->priority = (rand() % 7) + 1;
 
@@ -177,7 +177,7 @@ found:
 static void
 freeproc(struct proc *p)
 {
-  printf("Process %d has been freed\n", p->pid);
+  // printf("Process %d has been freed\n", p->pid);
   if (p->trapframe)
     kfree((void *)p->trapframe);
   p->trapframe = 0;
@@ -473,7 +473,7 @@ int wait(uint64 addr)
 void setPriority(int priority)
 {
   struct proc *p = myproc();
-  printf("setting priority for %d to %d\n", p->pid, priority);
+ // printf("setting priority for %d to %d\n", p->pid, priority);
   p->priority = priority;
 }
 
@@ -526,7 +526,7 @@ void scheduler(void)
           highestPriority = p;
         }
         total += tickets;
-        printf("total is now %d after adding %d tickets from %d. threshold was %d. It is from %s and had priority %d\n", total, p->tickets, p->pid, threshold, p->name, p->priority);
+        //printf("total is now %d after adding %d tickets from %d. threshold was %d. It is from %s and had priority %d\n", total, p->tickets, p->pid, threshold, p->name, p->priority);
 
         if (total >= threshold)
         {
@@ -534,7 +534,7 @@ void scheduler(void)
           c->proc = p;
           ran = 1;
           total = 0;
-          printf("selected process %d with priority %d\n", p->pid, p->priority);
+          //printf("selected process %d with priority %d\n", p->pid, p->priority);
           swtch(&c->context, &p->context);
           c->proc = 0;
         }
@@ -566,7 +566,7 @@ void scheduler(void)
 
         randomRange = highestPriority->tickets;
         // printf("\n");
-        printf("have lock %d becayse the total is %d and the threshold was %d\n", highestPriority->pid, total, threshold);
+        //printf("have lock %d becayse the total is %d and the threshold was %d\n", highestPriority->pid, total, threshold);
         // printf("\n");
         c->proc = highestPriority;
         swtch(&c->context, &highestPriority->context);
@@ -611,12 +611,12 @@ void yield(void)
   if (p->tickets >= 100 + minimum)
   {
     p->tickets -= 100;
-    printf("We just gave up process %d and took away %d tickets\n", p->pid, 100);
+    //printf("We just gave up process %d and took away %d tickets\n", p->pid, 100);
   }
   else
   {
     p->tickets = minimum;
-    printf("We just gave up process %d and took away %d tickets\n", p->pid, 10);
+    //printf("We just gave up process %d and took away %d tickets\n", p->pid, 10);
   }
   p->state = RUNNABLE;
   sched();
@@ -677,7 +677,8 @@ void sleep(void *chan, struct spinlock *lk)
   {
     runableProcs--;
   }
-  printf("going to sleep %d\n", p->pid);
+
+  //printf("going to sleep %d\n", p->pid); 
   p->state = SLEEPING;
 
   sched();
@@ -704,7 +705,9 @@ void wakeup(void *chan)
       if (p->state == SLEEPING && p->chan == chan)
       {
         p->state = RUNNABLE;
-        printf("%d is waking up\n", p->pid);
+
+        //printf("%d is waking up\n", p->pid); 
+
       }
       release(&p->lock);
     }
