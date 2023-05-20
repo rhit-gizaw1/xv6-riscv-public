@@ -8,6 +8,7 @@ int main(int argc, char *argv[])
     int pid = fork();
     if (pid == 0)
     {
+        setPriority(7); 
         int childFork = fork();
         if (!childFork)
         {
@@ -16,6 +17,7 @@ int main(int argc, char *argv[])
             {
                 if(i % 4 == 0){
                     userYield();
+                    userYield(); 
                 } else {
                     count ++; 
                 }
@@ -24,7 +26,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            // setPriority(7);
+            setPriority(7);
             int count = 0;
             sleep(5); 
             for (int i = 0; i < 30; i++)
